@@ -1,6 +1,6 @@
 # CLI tools for Continuous Label Printer
 
-Using label printers with continuous label rolls have a unique usablity issue: the general concept of a fixed paper size doesn't make sense. While the width is fixed, the length can and should be adjusted for whatever is printed.
+Using label printers with continuous label rolls, e.g. Brother QL 700, have a unique usablity issue: the general concept of a fixed paper size doesn't make sense. While the width is fixed, the length can and should be adjusted for whatever is printed.
 
 As an alternative to vendor-provided UI label editors, this project provides two tools to create and print custom labels with ease.
 
