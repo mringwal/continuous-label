@@ -1,0 +1,3 @@
+pypdf
+reportlab
+prompt_toolkit
