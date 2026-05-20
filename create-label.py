@@ -35,7 +35,7 @@ LINE_SPACING = 1.2
 
 # Label margins
 TOP_PADDING_PT = 5
-BOTTOM_PADDING_PT = 10
+BOTTOM_PADDING_PT = 13
 SIDE_MARGIN_MM = 3.0
 
 # In 'global' fit mode, font size is reduced for all lines equally
