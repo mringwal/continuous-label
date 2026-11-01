@@ -4,7 +4,14 @@ Using label printers with continuous label rolls, e.g. Brother QL 700, have a un
 
 As an alternative to vendor-provided UI label editors, this project provides two tools to create and print custom labels with ease.
 
-The tool `create-label.py` allows to enter a multi-line label and create a preview. If the preview looks good, it can be either saved to a PDF or printed directly. The rendering code uses a fixed font, but automatically reduces the font size until each line fits without clipping. Optionally, each line can be resized individually.
+The tool `create-label.py` allows to enter a multi-line label and create a preview. If the preview looks good, it can be either saved to a PDF or printed directly. The rendering code automatically reduces the font size until each line fits without clipping. Optionally, each line can be resized individually.
+
+Use `--font` to choose the label font. It accepts a path to a TTF/OTF font file or a built-in ReportLab font name, such as `Helvetica`:
+
+```sh
+./create-label.sh --font Helvetica "Shipping label"
+./create-label.sh --font /path/to/MyFont.ttf "Shipping label"
+```
 
 A saved PDF can be printed with the tool `print-pdf.py` at a later time.
 

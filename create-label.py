@@ -24,7 +24,7 @@ from config import LABEL_WIDTH_MM, PRINTER_NAME
 # Usage:
 # - Interactive (no text arg): `python3 label.py`
 # - One-liner: `python3 label.py "Line 1"` or `python3 label.py $'Line 1\nLine 2'`
-# - Options: `--fit global|line`, `--margin-mm 3`, `--dry-run`
+# - Options: `--fit global|line`, `--font /path/to/font.ttf`, `--margin-mm 3`, `--dry-run`
 
 ## Configuration
 
@@ -43,7 +43,7 @@ SIDE_MARGIN_MM = 3.0
 FIT_MODE = "global"
 
 
-def register_arial() -> None:
+def register_arial() -> str:
     arial_candidates = [
         "/Library/Fonts/Arial.ttf",
         "/System/Library/Fonts/Supplemental/Arial.ttf",
@@ -52,9 +52,33 @@ def register_arial() -> None:
     for path in arial_candidates:
         if os.path.exists(path):
             pdfmetrics.registerFont(TTFont(FONT_NAME, path))
-            return
+            return FONT_NAME
     raise FileNotFoundError(
         "Arial.ttf not found. Install Arial or update the path in label.py."
+    )
+
+
+def register_font(font: str | None) -> str:
+    """Return a ReportLab font name for a built-in font or a TTF/OTF file."""
+    if font is None:
+        return register_arial()
+    if font == FONT_NAME:
+        return register_arial()
+
+    font_path = Path(font).expanduser()
+    if font_path.is_file():
+        font_name = "LabelFont"
+        pdfmetrics.registerFont(TTFont(font_name, str(font_path)))
+        return font_name
+
+    # ReportLab's built-in fonts (for example Helvetica or Times-Roman) do
+    # not require a font file and are useful for quick labels.
+    if font in pdfmetrics.standardFonts:
+        return font
+
+    raise ValueError(
+        f"Font '{font}' was not found. Provide a path to a .ttf/.otf font file "
+        "or a ReportLab standard font such as Helvetica."
     )
 
 
@@ -63,11 +87,12 @@ def render_pdf(
     output_path: Path,
     fit_mode: str = FIT_MODE,
     side_margin_mm: float = SIDE_MARGIN_MM,
+    font: str | None = None,
 ) -> float:
     width = LABEL_WIDTH_MM * mm
     lines = text.splitlines() or [""]
 
-    register_arial()
+    font_name = register_font(font)
 
     if fit_mode not in {"global", "line"}:
         raise ValueError("fit_mode must be 'global' or 'line'")
@@ -75,7 +100,7 @@ def render_pdf(
     max_width_pt = width - (2 * side_margin_mm * mm)
     if fit_mode == "global":
         widest_line = max(
-            pdfmetrics.stringWidth(line, FONT_NAME, FONT_SIZE_PT)
+            pdfmetrics.stringWidth(line, font_name, FONT_SIZE_PT)
             for line in lines
         )
         scale = min(1.0, max_width_pt / widest_line) if widest_line > 0 else 1.0
@@ -84,7 +109,7 @@ def render_pdf(
     else:
         font_sizes = []
         for line in lines:
-            line_width = pdfmetrics.stringWidth(line, FONT_NAME, FONT_SIZE_PT)
+            line_width = pdfmetrics.stringWidth(line, font_name, FONT_SIZE_PT)
             scale = min(1.0, max_width_pt / line_width) if line_width > 0 else 1.0
             font_sizes.append(max(1.0, FONT_SIZE_PT * scale))
 
@@ -96,8 +121,8 @@ def render_pdf(
 
     y_start = height - TOP_PADDING_PT - max(font_sizes)
     for i, (line, font_size) in enumerate(zip(lines, font_sizes)):
-        c.setFont(FONT_NAME, font_size)
-        line_width = pdfmetrics.stringWidth(line, FONT_NAME, font_size)
+        c.setFont(font_name, font_size)
+        line_width = pdfmetrics.stringWidth(line, font_name, font_size)
         x = (side_margin_mm * mm) + max(0, (max_width_pt - line_width) / 2)
         y = y_start - (i * leading)
         c.drawString(x, y, line)
@@ -150,7 +175,9 @@ def prompt_label_text(existing_text: str = "") -> str:
     ).strip()
 
 
-def interactive_flow(dry_run: bool, fit_mode: str, side_margin_mm: float) -> int:
+def interactive_flow(
+    dry_run: bool, fit_mode: str, side_margin_mm: float, font: str | None
+) -> int:
 
     text = prompt_label_text()
     if not text:
@@ -165,7 +192,7 @@ def interactive_flow(dry_run: bool, fit_mode: str, side_margin_mm: float) -> int
         ) as tmp:
             preview_path = Path(tmp.name)
 
-        height_mm = render_pdf(text, preview_path, fit_mode, side_margin_mm)
+        height_mm = render_pdf(text, preview_path, fit_mode, side_margin_mm, font)
         open_pdf(preview_path)
 
         if fit_mode == "global":
@@ -192,7 +219,7 @@ def interactive_flow(dry_run: bool, fit_mode: str, side_margin_mm: float) -> int
             fit_mode = fit_mode_other
         elif choice == "3":
             output_path = Path("label.pdf").resolve()
-            render_pdf(text, output_path, fit_mode, side_margin_mm)
+            render_pdf(text, output_path, fit_mode, side_margin_mm, font)
             print(f"Wrote {output_path}")
             return 0
         elif choice == "4":
@@ -231,6 +258,10 @@ def main() -> int:
         help="Non-printable side margin in millimeters",
     )
     parser.add_argument(
+        "--font",
+        help="Path to a TTF/OTF font file, or a built-in font such as Helvetica",
+    )
+    parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",
@@ -238,16 +269,20 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.text:
-        return interactive_flow(args.dry_run, args.fit, args.margin_mm)
+    try:
+        if not args.text:
+            return interactive_flow(args.dry_run, args.fit, args.margin_mm, args.font)
 
-    text = args.text.strip()
-    if not text:
-        print("Error: label text is required.", file=sys.stderr)
+        text = args.text.strip()
+        if not text:
+            print("Error: label text is required.", file=sys.stderr)
+            return 1
+
+        output_path = Path(args.output).resolve()
+        render_pdf(text, output_path, args.fit, args.margin_mm, args.font)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
-
-    output_path = Path(args.output).resolve()
-    render_pdf(text, output_path, args.fit, args.margin_mm)
     open_pdf(output_path)
     print(f"Wrote {output_path}")
     return 0
